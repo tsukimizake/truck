@@ -19,3 +19,18 @@ fn punched_cube() {
     let file = std::fs::File::create("punched-cube.obj").unwrap();
     obj::write(&poly, file).unwrap();
 }
+
+#[test]
+fn identical_solids_or() {
+    // Create a cube
+    let v = builder::vertex(Point3::origin());
+    let e = builder::tsweep(&v, Vector3::unit_x());
+    let f = builder::tsweep(&e, Vector3::unit_y());
+    let cube: Solid = builder::tsweep(&f, Vector3::unit_z());
+
+    let result = crate::or(&cube, &cube, 0.05);
+    assert!(
+        result.is_some(),
+        "Boolean OR of identical solids should succeed"
+    );
+}
