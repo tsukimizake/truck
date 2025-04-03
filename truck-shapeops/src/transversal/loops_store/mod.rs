@@ -1,5 +1,7 @@
 #![allow(clippy::many_single_char_names)]
 
+use std::fmt::Debug;
+
 use super::*;
 use rustc_hash::FxHashMap as HashMap;
 use truck_base::cgmath64::*;
@@ -440,6 +442,73 @@ pub struct LoopsStoreQuadruple<C> {
     pub poly_loops_store1: LoopsStore<Point3, PolylineCurve>,
 }
 
+/// Check if two surfaces are coplanar within tolerance
+fn are_surfaces_coplanar<S>(surface0: &S, surface1: &S, tol: f64) -> bool
+where S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> {
+    // Sample points on the parameter domains of both surfaces
+    let sample_points = [(0.25, 0.25), (0.5, 0.5), (0.75, 0.75)];
+
+    // Check if normals are parallel (or anti-parallel) at sample points
+    for &(u, v) in &sample_points {
+        let normal0 = surface0.normal(u, v);
+        let normal1 = surface1.normal(u, v);
+
+        // Normalize the normals
+        let normal0 = normal0 / normal0.magnitude();
+        let normal1 = normal1 / normal1.magnitude();
+
+        // Check if normals are parallel or anti-parallel
+        let dot_product = normal0.dot(normal1).abs();
+        if (dot_product - 1.0).abs() > tol {
+            return false;
+        }
+
+        // Sample a point on each surface
+        let point0 = surface0.subs(u, v);
+        let point1 = surface1.subs(u, v);
+
+        // Project point1 onto the plane defined by point0 and normal0
+        let displacement = point1 - point0;
+        let distance = displacement.dot(normal0).abs();
+
+        // Check if the distance is within tolerance
+        if distance > tol {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn print_edge<C>(edge: &Edge<Point3, C>) {
+    let front_point = edge.absolute_front().point();
+    let back_point = edge.absolute_back().point();
+    println!(
+        "  Edge: ({}, {}, {}) -> ({}, {}, {}), orientation: {}",
+        front_point.x,
+        front_point.y,
+        front_point.z,
+        back_point.x,
+        back_point.y,
+        back_point.z,
+        edge.orientation()
+    );
+}
+
+fn print_loops_store<C>(loops_store: &LoopsStore<Point3, C>)
+where C: ParametricCurve3D + Debug {
+    for (i, loops) in loops_store.iter().enumerate() {
+        println!("LoopsStore[{}]:", i);
+        for (j, loop_) in loops.iter().enumerate() {
+            println!("  Loop[{}] with status: {:?}", j, loop_.status());
+            println!("  Edges in loop:");
+            for edge in loop_.edge_iter() {
+                print_edge(edge);
+            }
+        }
+    }
+}
+
 pub fn create_loops_stores<C, S>(
     geom_shell0: &Shell<Point3, C, S>,
     poly_shell0: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
@@ -450,8 +519,10 @@ where
     C: SearchNearestParameter<D1, Point = Point3>
         + SearchParameter<D1, Point = Point3>
         + Cut<Point = Point3, Vector = Vector3>
-        + From<IntersectionCurve<PolylineCurve, S, S>>,
-    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3>,
+        + From<IntersectionCurve<PolylineCurve, S, S>>
+        + Clone
+        + Debug,
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Clone,
 {
     let mut geom_loops_store0: LoopsStore<_, _> = geom_shell0.face_iter().collect();
     let mut poly_loops_store0: LoopsStore<_, _> = poly_shell0.face_iter().collect();
@@ -459,8 +530,56 @@ where
     let mut poly_loops_store1: LoopsStore<_, _> = poly_shell1.face_iter().collect();
     let store0_len = geom_loops_store0.len();
     let store1_len = geom_loops_store1.len();
+
+    // Track coplanar face pairs to avoid processing them in the main loop
+    let mut coplanar_faces = Vec::new();
+
+    {
+        let tol = 1e-6; // TODO pass and use the triangular tol
+
+        for face_index0 in 0..store0_len {
+            for face_index1 in 0..store1_len {
+                let surface0 = geom_shell0[face_index0].surface();
+                let surface1 = geom_shell1[face_index1].surface();
+
+                if are_surfaces_coplanar(&surface0, &surface1, tol) {
+                    coplanar_faces.push((face_index0, face_index1));
+                }
+            }
+        }
+
+        for &(face_index0, face_index1) in &coplanar_faces {
+            let ori0 = geom_shell0[face_index0].orientation();
+            let ori1 = geom_shell1[face_index1].orientation();
+
+            // Here we're setting them all to OR to fix the immediate issue
+            let status = ShapesOpStatus::Or;
+
+            let (status0, _status1) = match (ori0, ori1) {
+                (true, true) => (status, status.not()),
+                (true, false) => (status.not(), status.not()),
+                (false, true) => (status, status),
+                (false, false) => (status.not(), status),
+            };
+
+            // For now, we'll handle it for OR operations
+            // and return first face
+            // TODO take OR of the face properly
+            let face0 = &geom_shell0[face_index0];
+
+            // Add wire boundaries with proper status
+            for wire in face0.boundaries() {
+                let boundary_wire = BoundaryWire::new(wire.clone(), status0);
+                geom_loops_store0[face_index0].push(boundary_wire);
+            }
+        }
+    }
+    print_loops_store(&geom_loops_store0);
+
+    // Main processing for non-coplanar faces
     (0..store0_len)
         .flat_map(move |i| (0..store1_len).map(move |j| (i, j)))
+        .filter(|&(i, j)| !coplanar_faces.contains(&(i, j)))
         .try_for_each(|(face_index0, face_index1)| {
             let ori0 = geom_shell0[face_index0].orientation();
             let ori1 = geom_shell1[face_index1].orientation();
