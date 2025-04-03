@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::alternative::Alternative;
 
 use super::*;
@@ -72,7 +74,7 @@ fn altshell_to_shell<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
     )
 }
 
-fn process_one_pair_of_shells<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
+fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + Debug>(
     shell0: &Shell<Point3, C, S>,
     shell1: &Shell<Point3, C, S>,
     tol: f64,
@@ -89,9 +91,14 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
         geom_loops_store1: loops_store1,
         ..
     } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1)?;
+
+    println!("honi");
     let mut cls0 = divide_face::divide_faces(&altshell0, &loops_store0, tol)?;
+    println!("honi2");
+
     cls0.integrate_by_component();
     let mut cls1 = divide_face::divide_faces(&altshell1, &loops_store1, tol)?;
+    println!("honi3");
     cls1.integrate_by_component();
     let [mut and0, mut or0, unknown0] = cls0.and_or_unknown();
     unknown0.into_iter().try_for_each(|face| {
@@ -132,7 +139,7 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
 }
 
 /// AND operation between two solids.
-pub fn and<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
+pub fn and<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + Debug>(
     solid0: &Solid<Point3, C, S>,
     solid1: &Solid<Point3, C, S>,
     tol: f64,
@@ -155,7 +162,7 @@ pub fn and<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
 }
 
 /// OR operation between two solids.
-pub fn or<C: ShapeOpsCurve<S>, S: ShapeOpsSurface>(
+pub fn or<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + Debug>(
     solid0: &Solid<Point3, C, S>,
     solid1: &Solid<Point3, C, S>,
     tol: f64,
