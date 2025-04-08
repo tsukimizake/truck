@@ -483,16 +483,17 @@ where S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> {
 pub fn print_edge<C>(edge: &Edge<Point3, C>) {
     let front_point = edge.absolute_front().point();
     let back_point = edge.absolute_back().point();
-    println!(
-        "  Edge: ({}, {}, {}) -> ({}, {}, {}), orientation: {}",
-        front_point.x,
-        front_point.y,
-        front_point.z,
-        back_point.x,
-        back_point.y,
-        back_point.z,
-        edge.orientation()
-    );
+    if edge.orientation() {
+        println!(
+            "  Edge: ({}, {}, {}) -> ({}, {}, {})",
+            front_point.x, front_point.y, front_point.z, back_point.x, back_point.y, back_point.z,
+        );
+    } else {
+        println!(
+            "  Edge: ({}, {}, {}) -> ({}, {}, {})",
+            back_point.x, back_point.y, back_point.z, front_point.x, front_point.y, front_point.z
+        );
+    }
 }
 
 pub fn print_wire<C>(wire: &Wire<Point3, C>) {
