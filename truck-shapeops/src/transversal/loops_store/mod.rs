@@ -480,7 +480,7 @@ where S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> {
     true
 }
 
-fn print_edge<C>(edge: &Edge<Point3, C>) {
+pub fn print_edge<C>(edge: &Edge<Point3, C>) {
     let front_point = edge.absolute_front().point();
     let back_point = edge.absolute_back().point();
     println!(
@@ -495,7 +495,18 @@ fn print_edge<C>(edge: &Edge<Point3, C>) {
     );
 }
 
-fn print_loops_store<C>(loops_store: &LoopsStore<Point3, C>)
+pub fn print_wire<C>(wire: &Wire<Point3, C>) {
+    println!(
+        "Wire with {} edges simple: {}:",
+        wire.len(),
+        wire.is_simple()
+    );
+    for edge in wire.iter() {
+        print_edge(edge);
+    }
+}
+
+pub fn print_loops_store<C>(loops_store: &LoopsStore<Point3, C>)
 where C: ParametricCurve3D + Debug {
     for (i, loops) in loops_store.iter().enumerate() {
         println!("LoopsStore[{}]:", i);
@@ -507,6 +518,30 @@ where C: ParametricCurve3D + Debug {
             }
         }
     }
+}
+
+fn process_coplanar_face<C, S>(
+    geom_loops_store0: &mut LoopsStore<Point3, C>,
+    geom_shell0: &Shell<Point3, C, S>,
+    geom_shell1: &Shell<Point3, C, S>,
+    face_index0: usize,
+    face_index1: usize,
+) where
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3>,
+{
+    let ori0 = geom_shell0[face_index0].orientation();
+    let ori1 = geom_shell1[face_index1].orientation();
+
+    // For now, we'll handle it for OR operations
+    // and return first face
+    // TODO take OR of the face properly
+    let face0 = &geom_shell0[face_index0];
+
+    // Add wire boundaries with proper status
+    // for wire in face0.boundaries() {
+    // let boundary_wire = BoundaryWire::new(wire.clone(), ShapesOpStatus::Unknown);
+    // geom_loops_store0[face_index0].push(boundary_wire);
+    // }
 }
 
 pub fn create_loops_stores<C, S>(
@@ -549,32 +584,19 @@ where
         }
 
         for &(face_index0, face_index1) in &coplanar_faces {
-            let ori0 = geom_shell0[face_index0].orientation();
-            let ori1 = geom_shell1[face_index1].orientation();
-
-            // Here we're setting them all to OR to fix the immediate issue
-            let status = ShapesOpStatus::Or;
-
-            let (status0, _status1) = match (ori0, ori1) {
-                (true, true) => (status, status.not()),
-                (true, false) => (status.not(), status.not()),
-                (false, true) => (status, status),
-                (false, false) => (status.not(), status),
-            };
-
-            // For now, we'll handle it for OR operations
-            // and return first face
-            // TODO take OR of the face properly
-            let face0 = &geom_shell0[face_index0];
-
-            // Add wire boundaries with proper status
-            for wire in face0.boundaries() {
-                let boundary_wire = BoundaryWire::new(wire.clone(), status0);
-                geom_loops_store0[face_index0].push(boundary_wire);
-            }
+            process_coplanar_face(
+                &mut geom_loops_store0,
+                geom_shell0,
+                geom_shell1,
+                face_index0,
+                face_index1,
+            );
         }
     }
+    println!("Coplanar faces:{:?}", coplanar_faces);
     print_loops_store(&geom_loops_store0);
+    print_loops_store(&geom_loops_store1);
+    println!("\n");
 
     // Main processing for non-coplanar faces
     (0..store0_len)
@@ -595,6 +617,11 @@ where
             )?
             .into_iter()
             .try_for_each(|(polyline, intersection_curve)| {
+                // TODO
+                // adjacent_cubes_orのような接していて他のcoplanar面がない場合
+                // coplanar面の隣面で、2本edgeループのandが発生しうる
+                // そのような場合2本edgeループを除去してUnknownにする必要がありそう
+
                 let mut intersection_curve = intersection_curve.into();
                 let status = ShapesOpStatus::from_is_curve(&intersection_curve)?;
                 let (status0, status1) = match (ori0, ori1) {
