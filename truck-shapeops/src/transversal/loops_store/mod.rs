@@ -65,6 +65,7 @@ impl ShapesOpStatus {
         let der = curve.leader().der(t);
         let normal0 = curve.surface0().normal(pt0[0], pt0[1]);
         let normal1 = curve.surface1().normal(pt1[0], pt1[1]);
+        // TODO coplanar面の隣で発生する実質的な接線の場合の処理 Unknown? None?
         match normal0.cross(der).dot(normal1) > 0.0 {
             true => Some(ShapesOpStatus::Or),
             false => Some(ShapesOpStatus::And),
@@ -595,9 +596,6 @@ where
         }
     }
     println!("Coplanar faces:{:?}", coplanar_faces);
-    print_loops_store(&geom_loops_store0);
-    print_loops_store(&geom_loops_store1);
-    println!("\n");
 
     // Main processing for non-coplanar faces
     (0..store0_len)
@@ -621,8 +619,7 @@ where
                 // TODO
                 // adjacent_cubes_orのような接していて他のcoplanar面がない場合
                 // coplanar面の隣面で、2本edgeループのandが発生しうる
-                // そのような場合2本edgeループを除去してUnknownにする必要がありそう
-
+                // from_is_curve内で判定すべきか？
                 let mut intersection_curve = intersection_curve.into();
                 let status = ShapesOpStatus::from_is_curve(&intersection_curve)?;
                 let (status0, status1) = match (ori0, ori1) {
