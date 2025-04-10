@@ -28,7 +28,7 @@ fn describe_divide_one_face() {
         Point3::new(1.0, 1.0, 0.0),
         Point3::new(0.0, 1.0, 0.0),
     ]);
-    
+
     // Create edges for the outer boundary
     let edges = vec![
         line(&v[0], &v[1]),
@@ -36,48 +36,57 @@ fn describe_divide_one_face() {
         line(&v[2], &v[3]),
         line(&v[3], &v[0]),
     ];
-    
+
     // Create the outer wire
     let outer_wire: Wire<_, _> = edges.into();
-    
+
     // Create a plane surface
     let plane = Plane::new(
         Point3::origin(),
         Point3::new(1.0, 0.0, 0.0),
         Point3::new(0.0, 1.0, 0.0),
     );
-    
+
     // Create the face with the outer wire
     let face = Face::new(vec![outer_wire.clone()], plane);
-    
+
     // Create a diagonal line across the face as an intersection loop
-    let diagonal_v = Vertex::news([
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(1.0, 1.0, 0.0),
-    ]);
+    let diagonal_v = Vertex::news([Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)]);
     let diagonal_edge = line(&diagonal_v[0], &diagonal_v[1]);
     let diagonal_wire: Wire<_, _> = vec![diagonal_edge].into();
-    
+
     // Create loops with different statuses
-    let loops: Loops<_, _> = vec![
-        BoundaryWire::new(diagonal_wire, ShapesOpStatus::Or),
-    ].into_iter().collect();
-    
+    let loops: Loops<_, _> = vec![BoundaryWire::new(diagonal_wire, ShapesOpStatus::Or)]
+        .into_iter()
+        .collect();
+
     // Divide the face
     let result = divide_one_face(&face, &loops, 0.01).unwrap();
-    
+
     // We expect the face to be divided into two triangular faces
     assert_eq!(result.len(), 2, "The face should be divided into two parts");
-    
+
     // Both resulting faces should have the Or status
     for (face, status) in &result {
-        assert_eq!(*status, ShapesOpStatus::Or, "Divided face should have Or status");
-        
+        assert_eq!(
+            *status,
+            ShapesOpStatus::Or,
+            "Divided face should have Or status"
+        );
+
         // Each face should have a single boundary
-        assert_eq!(face.boundaries().len(), 1, "Each divided face should have one boundary");
-        
+        assert_eq!(
+            face.boundaries().len(),
+            1,
+            "Each divided face should have one boundary"
+        );
+
         // Each boundary should have 3 edges (forming a triangle)
-        assert_eq!(face.boundaries()[0].len(), 3, "Each boundary should form a triangle");
+        assert_eq!(
+            face.boundaries()[0].len(),
+            3,
+            "Each boundary should form a triangle"
+        );
     }
 }
 
@@ -192,7 +201,7 @@ fn describe_divide_one_face_multiple_loops() {
         Point3::new(2.0, 2.0, 0.0),
         Point3::new(0.0, 2.0, 0.0),
     ]);
-    
+
     // Create edges for the outer boundary
     let edges = vec![
         line(&v[0], &v[1]),
@@ -200,61 +209,79 @@ fn describe_divide_one_face_multiple_loops() {
         line(&v[2], &v[3]),
         line(&v[3], &v[0]),
     ];
-    
+
     // Create the outer wire
     let outer_wire: Wire<_, _> = edges.into();
-    
+
     // Create a plane surface
     let plane = Plane::new(
         Point3::origin(),
         Point3::new(1.0, 0.0, 0.0),
         Point3::new(0.0, 1.0, 0.0),
     );
-    
+
     // Create the face with the outer wire
     let face = Face::new(vec![outer_wire.clone()], plane);
-    
+
     // Create two intersection lines that divide the face into quadrants
-    let horiz_v = Vertex::news([
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(2.0, 1.0, 0.0),
-    ]);
-    let vert_v = Vertex::news([
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 2.0, 0.0),
-    ]);
-    
+    let horiz_v = Vertex::news([Point3::new(0.0, 1.0, 0.0), Point3::new(2.0, 1.0, 0.0)]);
+    let vert_v = Vertex::news([Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 2.0, 0.0)]);
+
     let horiz_edge = line(&horiz_v[0], &horiz_v[1]);
     let vert_edge = line(&vert_v[0], &vert_v[1]);
-    
+
     let horiz_wire: Wire<_, _> = vec![horiz_edge].into();
     let vert_wire: Wire<_, _> = vec![vert_edge].into();
-    
+
     // Create loops with different statuses
     let loops: Loops<_, _> = vec![
         BoundaryWire::new(horiz_wire, ShapesOpStatus::Or),
         BoundaryWire::new(vert_wire, ShapesOpStatus::And),
-    ].into_iter().collect();
-    
+    ]
+    .into_iter()
+    .collect();
+
     // Divide the face
     let result = divide_one_face(&face, &loops, 0.01).unwrap();
-    
+
     // We expect the face to be divided into four quadrants
-    assert_eq!(result.len(), 4, "The face should be divided into four parts");
-    
+    assert_eq!(
+        result.len(),
+        4,
+        "The face should be divided into four parts"
+    );
+
     // Count the number of faces with each status
-    let or_count = result.iter().filter(|(_, status)| *status == ShapesOpStatus::Or).count();
-    let and_count = result.iter().filter(|(_, status)| *status == ShapesOpStatus::And).count();
-    
+    let or_count = result
+        .iter()
+        .filter(|(_, status)| *status == ShapesOpStatus::Or)
+        .count();
+    let and_count = result
+        .iter()
+        .filter(|(_, status)| *status == ShapesOpStatus::And)
+        .count();
+
     // We should have a mix of Or and And faces
     assert!(or_count > 0, "Should have at least one Or face");
     assert!(and_count > 0, "Should have at least one And face");
-    assert_eq!(or_count + and_count, 4, "All faces should have either Or or And status");
-    
+    assert_eq!(
+        or_count + and_count,
+        4,
+        "All faces should have either Or or And status"
+    );
+
     // Each face should have a single boundary with 4 edges (forming a quadrant)
     for (face, _) in &result {
-        assert_eq!(face.boundaries().len(), 1, "Each divided face should have one boundary");
-        assert_eq!(face.boundaries()[0].len(), 4, "Each boundary should form a quadrilateral");
+        assert_eq!(
+            face.boundaries().len(),
+            1,
+            "Each divided face should have one boundary"
+        );
+        assert_eq!(
+            face.boundaries()[0].len(),
+            4,
+            "Each boundary should form a quadrilateral"
+        );
     }
 }
 
