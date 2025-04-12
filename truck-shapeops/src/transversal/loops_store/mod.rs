@@ -508,6 +508,22 @@ pub fn print_wire<C>(wire: &Wire<Point3, C>) {
     }
 }
 
+pub fn print_face<C, S>(face: &Face<Point3, C, S>) {
+    for wire in face.boundaries() {
+        print_wire(&wire);
+    }
+}
+
+pub fn print_loops<C>(loops: &Loops<Point3, C>) {
+    for (i, loop_) in loops.iter().enumerate() {
+        println!("Loop[{}] with status: {:?}", i, loop_.status());
+        println!("Edges in loop:");
+        for edge in loop_.edge_iter() {
+            print_edge(edge);
+        }
+    }
+}
+
 pub fn print_loops_store<C>(loops_store: &LoopsStore<Point3, C>)
 where C: ParametricCurve3D + Debug {
     for (i, loops) in loops_store.iter().enumerate() {
