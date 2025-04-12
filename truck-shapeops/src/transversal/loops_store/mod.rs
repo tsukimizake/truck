@@ -631,7 +631,6 @@ where
     // Main processing for non-coplanar faces
     (0..store0_len)
         .flat_map(move |i| (0..store1_len).map(move |j| (i, j)))
-        // .filter(|&(i, j)| !coplanar_faces_index.contains(&(i, j)))
         .try_for_each(|(face_index0, face_index1)| {
             let ori0 = geom_shell0[face_index0].orientation();
             let ori1 = geom_shell1[face_index1].orientation();
@@ -679,7 +678,13 @@ where
                     let mut pemap1 = HashMap::default();
                     let mut gemap0 = HashMap::default();
                     let mut gemap1 = HashMap::default();
-                    if second_partner_is_coplanar_face(face_index0, &coplanar_faces_index) {
+                    if !second_partner_is_coplanar_face(
+                        face_index0,
+                        face_index1,
+                        &coplanar_faces_index,
+                    ) {
+                        println!("fst face_index0: {}", face_index0);
+                        println!("fst face_index1: {}", face_index1);
                         let idx00 =
                             poly_loops_store0.add_polygon_vertex(face_index0, &pv0, &mut pemap0);
                         if let Some((wire_index, edge_index, kind)) = idx00 {
@@ -707,7 +712,13 @@ where
                             *polyline.last_mut().unwrap() = gv1.point();
                         }
                     }
-                    if first_partner_is_coplanar_face(face_index1, &coplanar_faces_index) {
+                    if !first_partner_is_coplanar_face(
+                        face_index0,
+                        face_index1,
+                        &coplanar_faces_index,
+                    ) {
+                        println!("snd face_index0: {}", face_index0);
+                        println!("snd face_index1: {}", face_index1);
                         let idx10 =
                             poly_loops_store1.add_polygon_vertex(face_index1, &pv0, &mut pemap0);
                         if let Some((wire_index, edge_index, kind)) = idx10 {
@@ -737,11 +748,19 @@ where
                     }
                     let pedge = Edge::new(&pv0, &pv1, polyline);
                     let gedge = Edge::new(&gv0, &gv1, intersection_curve.into());
-                    if second_partner_is_coplanar_face(face_index0, &coplanar_faces_index) {
+                    if !second_partner_is_coplanar_face(
+                        face_index0,
+                        face_index1,
+                        &coplanar_faces_index,
+                    ) {
                         poly_loops_store0[face_index0].add_edge(pedge.clone(), status0);
                         geom_loops_store0[face_index0].add_edge(gedge.clone(), status0);
                     }
-                    if first_partner_is_coplanar_face(face_index1, &coplanar_faces_index) {
+                    if !first_partner_is_coplanar_face(
+                        face_index0,
+                        face_index1,
+                        &coplanar_faces_index,
+                    ) {
                         poly_loops_store1[face_index1].add_edge(pedge, status1);
                         geom_loops_store1[face_index1].add_edge(gedge, status1);
                     }
@@ -758,16 +777,22 @@ where
 }
 
 fn second_partner_is_coplanar_face(
-    face_index: usize,
+    face_index0: usize,
+    face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
-    coplanar_faces_index.iter().any(|&(i, _)| i == face_index)
+    coplanar_faces_index
+        .iter()
+        .any(|&(i, j)| i != face_index0 && j == face_index1)
 }
 fn first_partner_is_coplanar_face(
-    face_index: usize,
+    face_index0: usize,
+    face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
-    coplanar_faces_index.iter().any(|&(_, j)| j == face_index)
+    coplanar_faces_index
+        .iter()
+        .any(|&(i, j)| i == face_index0 && j != face_index1)
 }
 
 #[cfg(test)]
