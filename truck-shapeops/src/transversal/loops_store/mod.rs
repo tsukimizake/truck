@@ -542,18 +542,28 @@ fn process_coplanar_face<C, S>(
     geom_loops_store0: &mut LoopsStore<Point3, C>,
     geom_shell0: &Shell<Point3, C, S>,
     geom_shell1: &Shell<Point3, C, S>,
+    poly_shell0: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
+    poly_shell1: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
     face_index0: usize,
     face_index1: usize,
-) where
-    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3>,
+) -> ()
+where
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + derive_more::Debug,
+    C: derive_more::Debug,
 {
     let ori0 = geom_shell0[face_index0].orientation();
     let ori1 = geom_shell1[face_index1].orientation();
 
-    // For now, we'll handle it for OR operations
-    // and return first face
-    // TODO take OR of the face properly
-    let face0 = &geom_shell0[face_index0];
+    // TODO take AND/OR of the face properly
+    let face0: &Face<cgmath::Point3<f64>, C, S> = &geom_shell0[face_index0];
+    let face1: &Face<cgmath::Point3<f64>, C, S> = &geom_shell1[face_index1];
+    print_face(face0);
+    print_face(face1);
+    //    face0
+    //        .boundaries()
+    //        .iter()
+    //        .flat_map(|wire0| face1.boundaries().iter().map(move |wire1| (wire0, wire1)))
+    //        .for_each(|(wire0, wire1)| {});
 
     // Add wire boundaries with proper status
     // for wire in face0.boundaries() {
@@ -575,7 +585,10 @@ where
         + From<IntersectionCurve<PolylineCurve, S, S>>
         + Clone
         + Debug,
-    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Clone,
+    S: ParametricSurface3D
+        + SearchNearestParameter<D2, Point = Point3>
+        + Clone
+        + derive_more::Debug,
 {
     let mut geom_loops_store0: LoopsStore<_, _> = geom_shell0.face_iter().collect();
     let mut poly_loops_store0: LoopsStore<_, _> = poly_shell0.face_iter().collect();
@@ -585,7 +598,7 @@ where
     let store1_len = geom_loops_store1.len();
 
     // Track coplanar face pairs to avoid processing them in the main loop
-    let mut coplanar_faces = Vec::new();
+    let mut coplanar_faces_index = Vec::new();
 
     {
         let tol = 1e-6; // TODO pass and use the triangular tol
@@ -596,27 +609,29 @@ where
                 let surface1 = geom_shell1[face_index1].surface();
 
                 if are_surfaces_coplanar(&surface0, &surface1, tol) {
-                    coplanar_faces.push((face_index0, face_index1));
+                    coplanar_faces_index.push((face_index0, face_index1));
                 }
             }
         }
 
-        for &(face_index0, face_index1) in &coplanar_faces {
+        for &(face_index0, face_index1) in &coplanar_faces_index {
             process_coplanar_face(
                 &mut geom_loops_store0,
                 geom_shell0,
                 geom_shell1,
+                poly_shell0,
+                poly_shell1,
                 face_index0,
                 face_index1,
             );
         }
     }
-    println!("Coplanar faces:{:?}", coplanar_faces);
+    println!("Coplanar faces:{:?}", coplanar_faces_index);
 
     // Main processing for non-coplanar faces
     (0..store0_len)
         .flat_map(move |i| (0..store1_len).map(move |j| (i, j)))
-        .filter(|&(i, j)| !coplanar_faces.contains(&(i, j)))
+        // .filter(|&(i, j)| !coplanar_faces_index.contains(&(i, j)))
         .try_for_each(|(face_index0, face_index1)| {
             let ori0 = geom_shell0[face_index0].orientation();
             let ori1 = geom_shell1[face_index1].orientation();
@@ -635,7 +650,7 @@ where
                 // TODO
                 // adjacent_cubes_orのような接していて他のcoplanar面がない場合
                 // coplanar面の隣面で、2本edgeループのandが発生しうる
-                // from_is_curve内で判定すべきか？
+
                 let mut intersection_curve = intersection_curve.into();
                 let status = ShapesOpStatus::from_is_curve(&intersection_curve)?;
                 let (status0, status1) = match (ori0, ori1) {
@@ -664,64 +679,72 @@ where
                     let mut pemap1 = HashMap::default();
                     let mut gemap0 = HashMap::default();
                     let mut gemap1 = HashMap::default();
-                    let idx00 =
-                        poly_loops_store0.add_polygon_vertex(face_index0, &pv0, &mut pemap0);
-                    if let Some((wire_index, edge_index, kind)) = idx00 {
-                        geom_loops_store0.add_geom_vertex(
-                            (face_index0, wire_index, edge_index),
-                            &gv0,
-                            kind,
-                            &surface1,
-                            &mut gemap0,
-                        )?;
-                        let polyline = intersection_curve.leader_mut();
-                        *polyline.first_mut().unwrap() = gv0.point();
+                    if second_partner_is_coplanar_face(face_index0, &coplanar_faces_index) {
+                        let idx00 =
+                            poly_loops_store0.add_polygon_vertex(face_index0, &pv0, &mut pemap0);
+                        if let Some((wire_index, edge_index, kind)) = idx00 {
+                            geom_loops_store0.add_geom_vertex(
+                                (face_index0, wire_index, edge_index),
+                                &gv0,
+                                kind,
+                                &surface1,
+                                &mut gemap0,
+                            )?;
+                            let polyline = intersection_curve.leader_mut();
+                            *polyline.first_mut().unwrap() = gv0.point();
+                        }
+                        let idx01 =
+                            poly_loops_store0.add_polygon_vertex(face_index0, &pv1, &mut pemap1);
+                        if let Some((wire_index, edge_index, kind)) = idx01 {
+                            geom_loops_store0.add_geom_vertex(
+                                (face_index0, wire_index, edge_index),
+                                &gv1,
+                                kind,
+                                &surface1,
+                                &mut gemap1,
+                            )?;
+                            let polyline = intersection_curve.leader_mut();
+                            *polyline.last_mut().unwrap() = gv1.point();
+                        }
                     }
-                    let idx01 =
-                        poly_loops_store0.add_polygon_vertex(face_index0, &pv1, &mut pemap1);
-                    if let Some((wire_index, edge_index, kind)) = idx01 {
-                        geom_loops_store0.add_geom_vertex(
-                            (face_index0, wire_index, edge_index),
-                            &gv1,
-                            kind,
-                            &surface1,
-                            &mut gemap1,
-                        )?;
-                        let polyline = intersection_curve.leader_mut();
-                        *polyline.last_mut().unwrap() = gv1.point();
-                    }
-                    let idx10 =
-                        poly_loops_store1.add_polygon_vertex(face_index1, &pv0, &mut pemap0);
-                    if let Some((wire_index, edge_index, kind)) = idx10 {
-                        geom_loops_store1.add_geom_vertex(
-                            (face_index1, wire_index, edge_index),
-                            &gv0,
-                            kind,
-                            &surface0,
-                            &mut gemap0,
-                        )?;
-                        let polyline = intersection_curve.leader_mut();
-                        *polyline.first_mut().unwrap() = gv0.point();
-                    }
-                    let idx11 =
-                        poly_loops_store1.add_polygon_vertex(face_index1, &pv1, &mut pemap1);
-                    if let Some((wire_index, edge_index, kind)) = idx11 {
-                        geom_loops_store1.add_geom_vertex(
-                            (face_index1, wire_index, edge_index),
-                            &gv1,
-                            kind,
-                            &surface0,
-                            &mut gemap1,
-                        )?;
-                        let polyline = intersection_curve.leader_mut();
-                        *polyline.last_mut().unwrap() = gv1.point();
+                    if first_partner_is_coplanar_face(face_index1, &coplanar_faces_index) {
+                        let idx10 =
+                            poly_loops_store1.add_polygon_vertex(face_index1, &pv0, &mut pemap0);
+                        if let Some((wire_index, edge_index, kind)) = idx10 {
+                            geom_loops_store1.add_geom_vertex(
+                                (face_index1, wire_index, edge_index),
+                                &gv0,
+                                kind,
+                                &surface0,
+                                &mut gemap0,
+                            )?;
+                            let polyline = intersection_curve.leader_mut();
+                            *polyline.first_mut().unwrap() = gv0.point();
+                        }
+                        let idx11 =
+                            poly_loops_store1.add_polygon_vertex(face_index1, &pv1, &mut pemap1);
+                        if let Some((wire_index, edge_index, kind)) = idx11 {
+                            geom_loops_store1.add_geom_vertex(
+                                (face_index1, wire_index, edge_index),
+                                &gv1,
+                                kind,
+                                &surface0,
+                                &mut gemap1,
+                            )?;
+                            let polyline = intersection_curve.leader_mut();
+                            *polyline.last_mut().unwrap() = gv1.point();
+                        }
                     }
                     let pedge = Edge::new(&pv0, &pv1, polyline);
                     let gedge = Edge::new(&gv0, &gv1, intersection_curve.into());
-                    poly_loops_store0[face_index0].add_edge(pedge.clone(), status0);
-                    geom_loops_store0[face_index0].add_edge(gedge.clone(), status0);
-                    poly_loops_store1[face_index1].add_edge(pedge, status1);
-                    geom_loops_store1[face_index1].add_edge(gedge, status1);
+                    if second_partner_is_coplanar_face(face_index0, &coplanar_faces_index) {
+                        poly_loops_store0[face_index0].add_edge(pedge.clone(), status0);
+                        geom_loops_store0[face_index0].add_edge(gedge.clone(), status0);
+                    }
+                    if first_partner_is_coplanar_face(face_index1, &coplanar_faces_index) {
+                        poly_loops_store1[face_index1].add_edge(pedge, status1);
+                        geom_loops_store1[face_index1].add_edge(gedge, status1);
+                    }
                 }
                 Some(())
             })
@@ -732,6 +755,19 @@ where
         geom_loops_store1,
         poly_loops_store1,
     })
+}
+
+fn second_partner_is_coplanar_face(
+    face_index: usize,
+    coplanar_faces_index: &Vec<(usize, usize)>,
+) -> bool {
+    coplanar_faces_index.iter().any(|&(i, _)| i == face_index)
+}
+fn first_partner_is_coplanar_face(
+    face_index: usize,
+    coplanar_faces_index: &Vec<(usize, usize)>,
+) -> bool {
+    coplanar_faces_index.iter().any(|&(_, j)| j == face_index)
 }
 
 #[cfg(test)]
