@@ -658,6 +658,12 @@ where
                     (false, true) => (status, status),
                     (false, false) => (status.not(), status),
                 };
+                println!(
+                    "curve: {:?}, status0: {:?}, status1: {:?}",
+                    &intersection_curve.leader(),
+                    status0,
+                    status1
+                );
                 if polyline.front().near(&polyline.back()) {
                     let poly_wire = create_independent_loop(polyline);
                     poly_loops_store0[face_index0]
@@ -678,91 +684,101 @@ where
                     let mut pemap1 = HashMap::default();
                     let mut gemap0 = HashMap::default();
                     let mut gemap1 = HashMap::default();
-                    if !second_partner_is_coplanar_face(
-                        face_index0,
-                        face_index1,
-                        &coplanar_faces_index,
+                    match (
+                        second_is_coplanar_face(face_index0, face_index1, &coplanar_faces_index),
+                        first_is_coplanar_face(face_index0, face_index1, &coplanar_faces_index),
                     ) {
-                        println!("fst face_index0: {}", face_index0);
-                        println!("fst face_index1: {}", face_index1);
-                        let idx00 =
-                            poly_loops_store0.add_polygon_vertex(face_index0, &pv0, &mut pemap0);
-                        if let Some((wire_index, edge_index, kind)) = idx00 {
-                            geom_loops_store0.add_geom_vertex(
-                                (face_index0, wire_index, edge_index),
-                                &gv0,
-                                kind,
-                                &surface1,
-                                &mut gemap0,
-                            )?;
-                            let polyline = intersection_curve.leader_mut();
-                            *polyline.first_mut().unwrap() = gv0.point();
+                        (false, true) => {
+                            println!("fst face_index0: {}", face_index0);
+                            println!("fst face_index1: {}", face_index1);
+                            let idx00 = poly_loops_store0.add_polygon_vertex(
+                                face_index0,
+                                &pv0,
+                                &mut pemap0,
+                            );
+                            if let Some((wire_index, edge_index, kind)) = idx00 {
+                                geom_loops_store0.add_geom_vertex(
+                                    (face_index0, wire_index, edge_index),
+                                    &gv0,
+                                    kind,
+                                    &surface1,
+                                    &mut gemap0,
+                                )?;
+                                let polyline = intersection_curve.leader_mut();
+                                *polyline.first_mut().unwrap() = gv0.point();
+                            }
+                            let idx01 = poly_loops_store0.add_polygon_vertex(
+                                face_index0,
+                                &pv1,
+                                &mut pemap1,
+                            );
+                            if let Some((wire_index, edge_index, kind)) = idx01 {
+                                geom_loops_store0.add_geom_vertex(
+                                    (face_index0, wire_index, edge_index),
+                                    &gv1,
+                                    kind,
+                                    &surface1,
+                                    &mut gemap1,
+                                )?;
+                                let polyline = intersection_curve.leader_mut();
+                                *polyline.last_mut().unwrap() = gv1.point();
+                            }
+                            let pedge = Edge::new(&pv0, &pv1, polyline);
+                            let gedge = Edge::new(&gv0, &gv1, intersection_curve.into());
+                            poly_loops_store0[face_index0].add_edge(pedge.clone(), status0);
+                            geom_loops_store0[face_index0].add_edge(gedge.clone(), status0);
                         }
-                        let idx01 =
-                            poly_loops_store0.add_polygon_vertex(face_index0, &pv1, &mut pemap1);
-                        if let Some((wire_index, edge_index, kind)) = idx01 {
-                            geom_loops_store0.add_geom_vertex(
-                                (face_index0, wire_index, edge_index),
-                                &gv1,
-                                kind,
-                                &surface1,
-                                &mut gemap1,
-                            )?;
-                            let polyline = intersection_curve.leader_mut();
-                            *polyline.last_mut().unwrap() = gv1.point();
+                        (_, false) => {
+                            println!("snd face_index0: {}", face_index0);
+                            println!("snd face_index1: {}", face_index1);
+                            let idx10 = poly_loops_store1.add_polygon_vertex(
+                                face_index1,
+                                &pv0,
+                                &mut pemap0,
+                            );
+                            if let Some((wire_index, edge_index, kind)) = idx10 {
+                                geom_loops_store1.add_geom_vertex(
+                                    (face_index1, wire_index, edge_index),
+                                    &gv0,
+                                    kind,
+                                    &surface0,
+                                    &mut gemap0,
+                                )?;
+                                let polyline = intersection_curve.leader_mut();
+                                *polyline.first_mut().unwrap() = gv0.point();
+                            }
+                            let idx11 = poly_loops_store1.add_polygon_vertex(
+                                face_index1,
+                                &pv1,
+                                &mut pemap1,
+                            );
+                            if let Some((wire_index, edge_index, kind)) = idx11 {
+                                geom_loops_store1.add_geom_vertex(
+                                    (face_index1, wire_index, edge_index),
+                                    &gv1,
+                                    kind,
+                                    &surface0,
+                                    &mut gemap1,
+                                )?;
+                                let polyline = intersection_curve.leader_mut();
+                                *polyline.last_mut().unwrap() = gv1.point();
+                            }
+                            let pedge = Edge::new(&pv0, &pv1, polyline);
+                            let gedge = Edge::new(&gv0, &gv1, intersection_curve.into());
+
+                            poly_loops_store1[face_index1].add_edge(pedge, status1);
+                            geom_loops_store1[face_index1].add_edge(gedge, status1);
                         }
-                    }
-                    if !first_partner_is_coplanar_face(
-                        face_index0,
-                        face_index1,
-                        &coplanar_faces_index,
-                    ) {
-                        println!("snd face_index0: {}", face_index0);
-                        println!("snd face_index1: {}", face_index1);
-                        let idx10 =
-                            poly_loops_store1.add_polygon_vertex(face_index1, &pv0, &mut pemap0);
-                        if let Some((wire_index, edge_index, kind)) = idx10 {
-                            geom_loops_store1.add_geom_vertex(
-                                (face_index1, wire_index, edge_index),
-                                &gv0,
-                                kind,
-                                &surface0,
-                                &mut gemap0,
-                            )?;
-                            let polyline = intersection_curve.leader_mut();
-                            *polyline.first_mut().unwrap() = gv0.point();
+
+                        (true, true) => {
+                            if ori0 == ori1 {
+                                // orientationが同じなら共通部分はAnd
+                                // 両方とも入れると被って駄目なので片方だけ？
+                                // divide_facesでそういうの扱えたか？
+                            } else {
+                                // orientationが逆なら共通部分は内部なのでaddしない
+                            }
                         }
-                        let idx11 =
-                            poly_loops_store1.add_polygon_vertex(face_index1, &pv1, &mut pemap1);
-                        if let Some((wire_index, edge_index, kind)) = idx11 {
-                            geom_loops_store1.add_geom_vertex(
-                                (face_index1, wire_index, edge_index),
-                                &gv1,
-                                kind,
-                                &surface0,
-                                &mut gemap1,
-                            )?;
-                            let polyline = intersection_curve.leader_mut();
-                            *polyline.last_mut().unwrap() = gv1.point();
-                        }
-                    }
-                    let pedge = Edge::new(&pv0, &pv1, polyline);
-                    let gedge = Edge::new(&gv0, &gv1, intersection_curve.into());
-                    if !second_partner_is_coplanar_face(
-                        face_index0,
-                        face_index1,
-                        &coplanar_faces_index,
-                    ) {
-                        poly_loops_store0[face_index0].add_edge(pedge.clone(), status0);
-                        geom_loops_store0[face_index0].add_edge(gedge.clone(), status0);
-                    }
-                    if !first_partner_is_coplanar_face(
-                        face_index0,
-                        face_index1,
-                        &coplanar_faces_index,
-                    ) {
-                        poly_loops_store1[face_index1].add_edge(pedge, status1);
-                        geom_loops_store1[face_index1].add_edge(gedge, status1);
                     }
                 }
                 Some(())
@@ -776,23 +792,29 @@ where
     })
 }
 
-fn second_partner_is_coplanar_face(
+fn second_is_coplanar_face(
     face_index0: usize,
     face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
-    coplanar_faces_index
-        .iter()
-        .any(|&(i, j)| i != face_index0 && j == face_index1)
+    coplanar_faces_index.iter().any(|&(i, j)| j == face_index1)
 }
-fn first_partner_is_coplanar_face(
+fn first_is_coplanar_face(
+    face_index0: usize,
+    face_index1: usize,
+    coplanar_faces_index: &Vec<(usize, usize)>,
+) -> bool {
+    coplanar_faces_index.iter().any(|&(i, j)| i == face_index0)
+}
+
+fn are_both_coplanar_faces(
     face_index0: usize,
     face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
     coplanar_faces_index
         .iter()
-        .any(|&(i, j)| i == face_index0 && j != face_index1)
+        .any(|&(i, j)| i == face_index0 && j == face_index1)
 }
 
 #[cfg(test)]

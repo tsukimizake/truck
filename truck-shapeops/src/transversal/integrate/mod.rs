@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::alternative::Alternative;
+use crate::{alternative::Alternative, transversal::loops_store::print_loops_store};
 
 use super::*;
 use truck_geometry::prelude::*;
@@ -92,6 +92,9 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + 
         ..
     } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1)?;
 
+    print_loops_store(&loops_store0);
+    println!("");
+    print_loops_store(&loops_store1);
     println!("honi");
     let mut cls0 = divide_face::divide_faces(&altshell0, &loops_store0, tol)?;
     println!("honi2");
