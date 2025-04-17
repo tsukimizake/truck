@@ -93,15 +93,12 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + 
     } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1)?;
 
     print_loops_store(&loops_store0);
-    println!("");
     print_loops_store(&loops_store1);
-    println!("honi");
+    println!("");
     let mut cls0 = divide_face::divide_faces(&altshell0, &loops_store0, tol)?;
-    println!("honi2");
 
     cls0.integrate_by_component();
     let mut cls1 = divide_face::divide_faces(&altshell1, &loops_store1, tol)?;
-    println!("honi3");
     cls1.integrate_by_component();
     let [mut and0, mut or0, unknown0] = cls0.and_or_unknown();
     unknown0.into_iter().try_for_each(|face| {

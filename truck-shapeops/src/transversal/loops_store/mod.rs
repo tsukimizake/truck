@@ -538,38 +538,53 @@ where C: ParametricCurve3D + Debug {
     }
 }
 
-fn process_coplanar_face<C, S>(
+fn finalize_coplanar_faces<C, S>(
     geom_loops_store0: &mut LoopsStore<Point3, C>,
-    geom_shell0: &Shell<Point3, C, S>,
-    geom_shell1: &Shell<Point3, C, S>,
-    poly_shell0: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
-    poly_shell1: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
+    geom_loops_store1: &mut LoopsStore<Point3, C>,
+    ori0: bool,
+    ori1: bool,
     face_index0: usize,
     face_index1: usize,
 ) -> ()
 where
-    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + derive_more::Debug,
-    C: derive_more::Debug,
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Debug,
+    C: Debug,
 {
-    let ori0 = geom_shell0[face_index0].orientation();
-    let ori1 = geom_shell1[face_index1].orientation();
+    println!("i: {}, j: {}", face_index0, face_index1);
+    if ori0 == ori1 {
+        println!("ori same");
+        // orientationが同じなら共通部分はAnd
+        // 両方とも入れると被って駄目なので片方だけ？
+        // divide_facesでそういうの扱えたか？
+    } else {
+        // orientationが逆なら共通部分は内部なのでaddしない
 
-    // TODO take AND/OR of the face properly
-    let face0: &Face<cgmath::Point3<f64>, C, S> = &geom_shell0[face_index0];
-    let face1: &Face<cgmath::Point3<f64>, C, S> = &geom_shell1[face_index1];
-    print_face(face0);
-    print_face(face1);
-    //    face0
-    //        .boundaries()
-    //        .iter()
-    //        .flat_map(|wire0| face1.boundaries().iter().map(move |wire1| (wire0, wire1)))
-    //        .for_each(|(wire0, wire1)| {});
+        let mut removed_indexes0 = vec![];
+        geom_loops_store0[face_index0]
+            .iter()
+            .enumerate()
+            .for_each(|(idx, loop_)| {
+                if loop_.status() == ShapesOpStatus::And {
+                    removed_indexes0.push(idx);
+                }
+            });
+        removed_indexes0.iter().for_each(|&idx| {
+            geom_loops_store0[face_index0].swap_remove(idx);
+        });
 
-    // Add wire boundaries with proper status
-    // for wire in face0.boundaries() {
-    // let boundary_wire = BoundaryWire::new(wire.clone(), ShapesOpStatus::Unknown);
-    // geom_loops_store0[face_index0].push(boundary_wire);
-    // }
+        let mut removed_indexes1 = vec![];
+        geom_loops_store1[face_index1]
+            .iter()
+            .enumerate()
+            .for_each(|(idx, loop_)| {
+                if loop_.status() == ShapesOpStatus::And {
+                    removed_indexes1.push(idx);
+                }
+            });
+        removed_indexes1.iter().for_each(|&idx| {
+            geom_loops_store1[face_index1].swap_remove(idx);
+        });
+    }
 }
 
 pub fn create_loops_stores<C, S>(
@@ -585,10 +600,7 @@ where
         + From<IntersectionCurve<PolylineCurve, S, S>>
         + Clone
         + Debug,
-    S: ParametricSurface3D
-        + SearchNearestParameter<D2, Point = Point3>
-        + Clone
-        + derive_more::Debug,
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Clone + Debug,
 {
     let mut geom_loops_store0: LoopsStore<_, _> = geom_shell0.face_iter().collect();
     let mut poly_loops_store0: LoopsStore<_, _> = poly_shell0.face_iter().collect();
@@ -612,18 +624,6 @@ where
                     coplanar_faces_index.push((face_index0, face_index1));
                 }
             }
-        }
-
-        for &(face_index0, face_index1) in &coplanar_faces_index {
-            process_coplanar_face(
-                &mut geom_loops_store0,
-                geom_shell0,
-                geom_shell1,
-                poly_shell0,
-                poly_shell1,
-                face_index0,
-                face_index1,
-            );
         }
     }
     println!("Coplanar faces:{:?}", coplanar_faces_index);
@@ -759,20 +759,24 @@ where
                         poly_loops_store1[face_index1].add_edge(pedge, status1);
                         geom_loops_store1[face_index1].add_edge(gedge, status1);
                     }
-
-                    if first_is_coplanar && second_is_coplanar {
-                        if ori0 == ori1 {
-                            // orientationが同じなら共通部分はAnd
-                            // 両方とも入れると被って駄目なので片方だけ？
-                            // divide_facesでそういうの扱えたか？
-                        } else {
-                            // orientationが逆なら共通部分は内部なのでaddしない
-                        }
-                    }
                 }
                 Some(())
             })
         })?;
+
+    for &(face_index0, face_index1) in &coplanar_faces_index {
+        let ori0 = geom_shell0[face_index0].orientation();
+        let ori1 = geom_shell1[face_index1].orientation();
+        finalize_coplanar_faces::<C, S>(
+            &mut geom_loops_store0,
+            &mut geom_loops_store1,
+            ori0,
+            ori1,
+            face_index0,
+            face_index1,
+        );
+    }
+
     Some(LoopsStoreQuadruple {
         geom_loops_store0,
         poly_loops_store0,
@@ -782,28 +786,18 @@ where
 }
 
 fn second_is_coplanar_face(
-    face_index0: usize,
+    _face_index0: usize,
     face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
-    coplanar_faces_index.iter().any(|&(i, j)| j == face_index1)
+    coplanar_faces_index.iter().any(|&(_i, j)| j == face_index1)
 }
 fn first_is_coplanar_face(
     face_index0: usize,
-    face_index1: usize,
+    _face_index1: usize,
     coplanar_faces_index: &Vec<(usize, usize)>,
 ) -> bool {
-    coplanar_faces_index.iter().any(|&(i, j)| i == face_index0)
-}
-
-fn are_both_coplanar_faces(
-    face_index0: usize,
-    face_index1: usize,
-    coplanar_faces_index: &Vec<(usize, usize)>,
-) -> bool {
-    coplanar_faces_index
-        .iter()
-        .any(|&(i, j)| i == face_index0 && j == face_index1)
+    coplanar_faces_index.iter().any(|&(i, _j)| i == face_index0)
 }
 
 #[cfg(test)]
