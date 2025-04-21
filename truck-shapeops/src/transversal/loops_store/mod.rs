@@ -523,6 +523,12 @@ pub fn print_loops<C>(loops: &Loops<Point3, C>) {
         }
     }
 }
+pub fn print_shell<C, S>(shell: &Shell<Point3, C, S>) {
+    for (i, face) in shell.face_iter().enumerate() {
+        println!("Face[{}]:", i);
+        print_face(face);
+    }
+}
 
 pub fn print_loops_store<C>(loops_store: &LoopsStore<Point3, C>)
 where C: ParametricCurve3D + Debug {
@@ -553,6 +559,7 @@ where
     println!("i: {}, j: {}", face_index0, face_index1);
     if ori0 == ori1 {
         println!("ori same");
+        // TODO
         // orientationが同じなら共通部分はAnd
         // 両方とも入れると被って駄目なので片方だけ？
         // divide_facesでそういうの扱えたか？
