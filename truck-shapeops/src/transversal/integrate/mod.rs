@@ -186,8 +186,6 @@ pub fn or<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + Debug>(
         let [_, res] = process_one_pair_of_shells(&or_shell, shell, tol)?;
         or_shell = res;
     }
-    // TODO
-    // connected_componentsが正しくない
     let boundaries = or_shell.connected_components();
     boundaries.iter().for_each(|shell| {
         print_shell(shell);

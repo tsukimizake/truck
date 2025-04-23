@@ -558,11 +558,9 @@ where
 {
     println!("i: {}, j: {}", face_index0, face_index1);
     if ori0 == ori1 {
-        println!("ori same");
         // TODO
         // orientationが同じなら共通部分はAnd
         // 両方とも入れると被って駄目なので片方だけ？
-        // divide_facesでそういうの扱えたか？
     } else {
         // orientationが逆なら共通部分は内部なのでaddしない
 
@@ -602,6 +600,8 @@ where
     S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Debug,
     C: Debug,
 {
+    // Z=1面のcoplanar面の辺が(0.5, 1, 1) と (1, 1, 1) 間にあると隣のY=1面ではこのようになり、
+    // divide_facesで失敗する
     // Loop[0] with status: And
     //   Edges in loop:
     //   Edge: (0.5, 1, 1) -> (1, 1, 1)
@@ -613,14 +613,16 @@ where
     //   Edge: (0, 1, 0) -> (1, 1, 0)
     //   Edge: (1, 1, 0) -> (1, 1, 1)
     //   Edge: (1, 1, 1) -> (0.5, 1, 1)
+
     // 長さ2のAndループを削除して、
     // 残りが複数なら何もしない
-
     let mut removed_indexes = vec![];
     geom_loops_store[face_index]
         .iter()
         .enumerate()
         .for_each(|(idx, loop_)| {
+            // TODO 曲面の場合loop_.len() == 2とは限らない
+            // loop_の面積が0の場合削除のようにするのが正しいか？
             if loop_.status() == ShapesOpStatus::And && loop_.len() == 2 {
                 removed_indexes.push(idx);
             }
@@ -693,10 +695,6 @@ where
             )?
             .into_iter()
             .try_for_each(|(polyline, intersection_curve)| {
-                // TODO
-                // adjacent_cubes_orのような接していて他のcoplanar面がない場合
-                // coplanar面の隣面で、2本edgeループのandが発生しうる
-
                 let mut intersection_curve = intersection_curve.into();
                 let status = ShapesOpStatus::from_is_curve(&intersection_curve)?;
                 let (status0, status1) = match (ori0, ori1) {
