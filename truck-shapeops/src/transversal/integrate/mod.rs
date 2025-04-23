@@ -93,8 +93,9 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + 
     } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1)?;
 
     print_loops_store(&loops_store0);
-    print_loops_store(&loops_store1);
     println!("");
+    print_loops_store(&loops_store1);
+    println!("\n");
     let mut cls0 = divide_face::divide_faces(&altshell0, &loops_store0, tol)?;
 
     cls0.integrate_by_component();
