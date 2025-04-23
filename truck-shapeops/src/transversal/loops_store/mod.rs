@@ -594,6 +594,42 @@ where
     }
 }
 
+fn finalize_adjacent_to_coplanar_faces<C, S>(
+    geom_loops_store: &mut LoopsStore<Point3, C>,
+    face_index: usize,
+) -> ()
+where
+    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Debug,
+    C: Debug,
+{
+    // Loop[0] with status: And
+    //   Edges in loop:
+    //   Edge: (0.5, 1, 1) -> (1, 1, 1)
+    //   Edge: (1, 1, 1) -> (0.5, 1, 1)
+    // Loop[1] with status: Or
+    //   Edges in loop:
+    //   Edge: (0.5, 1, 1) -> (0, 1, 1)
+    //   Edge: (0, 1, 1) -> (0, 1, 0)
+    //   Edge: (0, 1, 0) -> (1, 1, 0)
+    //   Edge: (1, 1, 0) -> (1, 1, 1)
+    //   Edge: (1, 1, 1) -> (0.5, 1, 1)
+    // 長さ2のAndループを削除して、
+    // 残りが複数なら何もしない
+
+    let mut removed_indexes = vec![];
+    geom_loops_store[face_index]
+        .iter()
+        .enumerate()
+        .for_each(|(idx, loop_)| {
+            if loop_.status() == ShapesOpStatus::And && loop_.len() == 2 {
+                removed_indexes.push(idx);
+            }
+        });
+    removed_indexes.iter().for_each(|&idx| {
+        geom_loops_store[face_index].swap_remove(idx);
+    });
+}
+
 pub fn create_loops_stores<C, S>(
     geom_shell0: &Shell<Point3, C, S>,
     poly_shell0: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
@@ -633,6 +669,10 @@ where
             }
         }
     }
+
+    let mut adjacent_to_coplanar_faces_index_0 = Vec::new();
+    let mut adjacent_to_coplanar_faces_index_1 = Vec::new();
+
     println!("Coplanar faces:{:?}", coplanar_faces_index);
 
     // Main processing for non-coplanar faces
@@ -685,12 +725,17 @@ where
                     let mut pemap1 = HashMap::default();
                     let mut gemap0 = HashMap::default();
                     let mut gemap1 = HashMap::default();
-                    let (second_is_coplanar, first_is_coplanar) = (
-                        second_is_coplanar_face(face_index0, face_index1, &coplanar_faces_index),
+                    let (first_is_coplanar, second_is_coplanar) = (
                         first_is_coplanar_face(face_index0, face_index1, &coplanar_faces_index),
+                        second_is_coplanar_face(face_index0, face_index1, &coplanar_faces_index),
                     );
 
-                    println!("face_index0: {}, face_index1: {}", face_index0, face_index1);
+                    if first_is_coplanar {
+                        adjacent_to_coplanar_faces_index_1.push(face_index1);
+                    }
+                    if second_is_coplanar {
+                        adjacent_to_coplanar_faces_index_0.push(face_index0);
+                    }
 
                     let idx00 =
                         poly_loops_store0.add_polygon_vertex(face_index0, &pv0, &mut pemap0);
@@ -767,6 +812,14 @@ where
             face_index0,
             face_index1,
         );
+    }
+
+    // coplanar面の隣の面で辺に沿って発生するAndループを削除
+    for face_index0 in adjacent_to_coplanar_faces_index_0 {
+        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store0, face_index0);
+    }
+    for face_index1 in adjacent_to_coplanar_faces_index_1 {
+        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store1, face_index1);
     }
 
     Some(LoopsStoreQuadruple {
