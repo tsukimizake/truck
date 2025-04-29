@@ -636,6 +636,7 @@ pub fn create_loops_stores<C, S>(
     poly_shell0: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
     geom_shell1: &Shell<Point3, C, S>,
     poly_shell1: &Shell<Point3, PolylineCurve, Option<PolygonMesh>>,
+    tol: f64,
 ) -> Option<LoopsStoreQuadruple<C>>
 where
     C: SearchNearestParameter<D1, Point = Point3>
@@ -657,8 +658,6 @@ where
     let mut coplanar_faces_index = Vec::new();
 
     {
-        let tol = 1e-6; // TODO pass and use the triangular tol
-
         for face_index0 in 0..store0_len {
             for face_index1 in 0..store1_len {
                 let surface0 = geom_shell0[face_index0].surface();

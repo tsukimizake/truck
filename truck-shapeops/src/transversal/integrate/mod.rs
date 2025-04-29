@@ -90,7 +90,7 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + 
         geom_loops_store0: loops_store0,
         geom_loops_store1: loops_store1,
         ..
-    } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1)?;
+    } = loops_store::create_loops_stores(&altshell0, &poly_shell0, &altshell1, &poly_shell1, tol)?;
 
     print_loops_store(&loops_store0);
     println!("");
