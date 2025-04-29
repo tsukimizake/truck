@@ -65,7 +65,6 @@ impl ShapesOpStatus {
         let der = curve.leader().der(t);
         let normal0 = curve.surface0().normal(pt0[0], pt0[1]);
         let normal1 = curve.surface1().normal(pt1[0], pt1[1]);
-        // TODO coplanar面の隣で発生する実質的な接線の場合の処理 Unknown? None?
         match normal0.cross(der).dot(normal1) > 0.0 {
             true => Some(ShapesOpStatus::Or),
             false => Some(ShapesOpStatus::And),
