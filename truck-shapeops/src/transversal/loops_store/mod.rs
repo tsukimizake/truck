@@ -544,73 +544,6 @@ where C: ParametricCurve3D + Debug {
     }
 }
 
-fn finalize_coplanar_faces<C, S>(
-    geom_loops_store0: &mut LoopsStore<Point3, C>,
-    geom_loops_store1: &mut LoopsStore<Point3, C>,
-    ori0: bool,
-    ori1: bool,
-    face_index0: usize,
-    face_index1: usize,
-) -> ()
-where
-    S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Debug,
-    C: Debug + Clone,
-{
-    println!("i: {}, j: {}", face_index0, face_index1);
-    if ori0 == ori1 {
-        // orientation が同じなら共通部分(And) を片方だけ残す
-        let and_loops_0: Vec<_> = geom_loops_store0[face_index0]
-            .iter()
-            .filter(|l| l.status() == ShapesOpStatus::And)
-            .cloned()
-            .collect();
-
-        let mut new_loops1 = Vec::new();
-        for loop1 in geom_loops_store1[face_index1].iter().cloned() {
-            let duplicated = and_loops_0.iter().any(|loop0| {
-                loop0.len() == loop1.len()
-                    && loop0
-                        .iter()
-                        .zip(loop1.iter())
-                        .all(|(e0, e1)| e0.id() == e1.id())
-            });
-            if !duplicated {
-                new_loops1.push(loop1);
-            }
-        }
-
-        geom_loops_store1[face_index1].clear();
-        geom_loops_store1[face_index1].extend(new_loops1);
-    } else {
-        // orientationが逆なら共通部分は内部なのでaddしない
-        let mut removed_indexes0 = vec![];
-        geom_loops_store0[face_index0]
-            .iter()
-            .enumerate()
-            .for_each(|(idx, loop_)| {
-                if loop_.status() == ShapesOpStatus::And {
-                    removed_indexes0.push(idx);
-                }
-            });
-        removed_indexes0.iter().for_each(|&idx| {
-            geom_loops_store0[face_index0].swap_remove(idx);
-        });
-
-        let mut removed_indexes1 = vec![];
-        geom_loops_store1[face_index1]
-            .iter()
-            .enumerate()
-            .for_each(|(idx, loop_)| {
-                if loop_.status() == ShapesOpStatus::And {
-                    removed_indexes1.push(idx);
-                }
-            });
-        removed_indexes1.iter().for_each(|&idx| {
-            geom_loops_store1[face_index1].swap_remove(idx);
-        });
-    }
-}
-
 fn finalize_adjacent_to_coplanar_faces<C, S>(
     geom_loops_store: &mut LoopsStore<Point3, C>,
     face_index: usize,
@@ -633,8 +566,6 @@ where
     //   Edge: (1, 1, 0) -> (1, 1, 1)
     //   Edge: (1, 1, 1) -> (0.5, 1, 1)
 
-    // 長さ2のAndループを削除して、
-    // 残りが複数なら何もしない
     let mut removed_indexes = vec![];
     geom_loops_store[face_index]
         .iter()
@@ -642,12 +573,12 @@ where
         .for_each(|(idx, loop_)| {
             // TODO 曲面の場合loop_.len() == 2とは限らない
             // loop_の面積が0の場合削除のようにするのが正しいか？
-            if loop_.status() == ShapesOpStatus::And && loop_.len() == 2 {
+            if loop_.len() == 2 {
                 removed_indexes.push(idx);
             }
         });
-    removed_indexes.iter().for_each(|&idx| {
-        geom_loops_store[face_index].swap_remove(idx);
+    removed_indexes.iter().rev().for_each(|&idx| {
+        geom_loops_store[face_index].remove(idx);
     });
 }
 
@@ -816,26 +747,12 @@ where
             })
         })?;
 
-    // coplanar面の隣の面で辺に沿って発生するAndループを削除
+    // coplanar面の隣の面で辺に沿って発生する自明なループを削除
     for face_index0 in adjacent_to_coplanar_faces_index_0 {
         finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store0, face_index0);
     }
     for face_index1 in adjacent_to_coplanar_faces_index_1 {
         finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store1, face_index1);
-    }
-
-    // 両方がcoplanar面なら通常処理のあとfinalize_coplanar_faces
-    for &(face_index0, face_index1) in &coplanar_faces_index {
-        let ori0 = geom_shell0[face_index0].orientation();
-        let ori1 = geom_shell1[face_index1].orientation();
-        finalize_coplanar_faces::<C, S>(
-            &mut geom_loops_store0,
-            &mut geom_loops_store1,
-            ori0,
-            ori1,
-            face_index0,
-            face_index1,
-        );
     }
 
     Some(LoopsStoreQuadruple {
