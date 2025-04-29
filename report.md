@@ -1,4 +1,12 @@
-I tried to investigate the code with this small testcase. It has a coplanar face on z=1.
+I tried to investigate the boolean operation with coplanar faces.
+
+
+
+I can use english to some extent, but it's too complex for me to write this report in English. As the author of this project seems to be also Japanese, I would like to write this report in Japanese. If there is anybody interested, please use chatgpt to translate it.
+
+
+
+最も単純なテストケースとして以下のようなz=1で接するboxのorで実験しました。
 
 ```rust
 #[test]
@@ -26,6 +34,10 @@ fn adjacent_cubes_or() {
 }
 ```
 
-There seems to be two function to fix.
-- create_loops_store
-- signed_crossing_faces
+これを実行してまず失敗したのはdivide_facesの
+```rust
+        let op = pre_faces.iter_mut().find(|face| face[0].poly.include(pt))?;
+```
+がNoneを返すというものでした。
+
+
