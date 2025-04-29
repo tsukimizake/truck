@@ -443,6 +443,7 @@ pub struct LoopsStoreQuadruple<C> {
 }
 
 /// Check if two surfaces are coplanar within tolerance
+/// TODO may not complete!
 fn are_surfaces_coplanar<S>(surface0: &S, surface1: &S, tol: f64) -> bool
 where S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> {
     // Sample points on the parameter domains of both surfaces
