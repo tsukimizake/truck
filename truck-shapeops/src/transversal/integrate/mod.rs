@@ -125,15 +125,11 @@ fn process_one_pair_of_shells<C: ShapeOpsCurve<S> + Debug, S: ShapeOpsSurface + 
             Some(count + poly.signed_crossing_faces(pt, dir))
         })?;
 
-        // TODO
-        // signed_crossing_facesのptに相手側の頂点と同じ座標が渡るのが想定されていない
-        // tmp
-        or1.push(face);
-        // if count >= 1 {
-        //     and1.push(face);
-        // } else {
-        //     or1.push(face);
-        // }
+        if count >= 1 {
+            and1.push(face);
+        } else {
+            or1.push(face);
+        }
         Some(())
     })?;
     and0.append(&mut and1);
