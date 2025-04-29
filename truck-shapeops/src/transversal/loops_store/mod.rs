@@ -553,16 +553,35 @@ fn finalize_coplanar_faces<C, S>(
 ) -> ()
 where
     S: ParametricSurface3D + SearchNearestParameter<D2, Point = Point3> + Debug,
-    C: Debug,
+    C: Debug + Clone,
 {
     println!("i: {}, j: {}", face_index0, face_index1);
     if ori0 == ori1 {
-        // TODO
-        // orientationが同じなら共通部分はAnd
-        // 両方とも入れると被って駄目なので片方だけ？
+        // orientation が同じなら共通部分(And) を片方だけ残す
+        let and_loops_0: Vec<_> = geom_loops_store0[face_index0]
+            .iter()
+            .filter(|l| l.status() == ShapesOpStatus::And)
+            .cloned()
+            .collect();
+
+        let mut new_loops1 = Vec::new();
+        for loop1 in geom_loops_store1[face_index1].iter().cloned() {
+            let duplicated = and_loops_0.iter().any(|loop0| {
+                loop0.len() == loop1.len()
+                    && loop0
+                        .iter()
+                        .zip(loop1.iter())
+                        .all(|(e0, e1)| e0.id() == e1.id())
+            });
+            if !duplicated {
+                new_loops1.push(loop1);
+            }
+        }
+
+        geom_loops_store1[face_index1].clear();
+        geom_loops_store1[face_index1].extend(new_loops1);
     } else {
         // orientationが逆なら共通部分は内部なのでaddしない
-
         let mut removed_indexes0 = vec![];
         geom_loops_store0[face_index0]
             .iter()
@@ -796,6 +815,14 @@ where
             })
         })?;
 
+    // coplanar面の隣の面で辺に沿って発生するAndループを削除
+    for face_index0 in adjacent_to_coplanar_faces_index_0 {
+        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store0, face_index0);
+    }
+    for face_index1 in adjacent_to_coplanar_faces_index_1 {
+        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store1, face_index1);
+    }
+
     // 両方がcoplanar面なら通常処理のあとfinalize_coplanar_faces
     for &(face_index0, face_index1) in &coplanar_faces_index {
         let ori0 = geom_shell0[face_index0].orientation();
@@ -808,14 +835,6 @@ where
             face_index0,
             face_index1,
         );
-    }
-
-    // coplanar面の隣の面で辺に沿って発生するAndループを削除
-    for face_index0 in adjacent_to_coplanar_faces_index_0 {
-        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store0, face_index0);
-    }
-    for face_index1 in adjacent_to_coplanar_faces_index_1 {
-        finalize_adjacent_to_coplanar_faces::<C, S>(&mut geom_loops_store1, face_index1);
     }
 
     Some(LoopsStoreQuadruple {
